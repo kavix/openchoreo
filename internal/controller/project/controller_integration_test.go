@@ -602,6 +602,24 @@ var _ = Describe("Project Controller", func() {
 			Expect(cond).NotTo(BeNil())
 			Expect(cond.Status).To(Equal(metav1.ConditionTrue))
 
+			By("Creating an owned Resource")
+			resource := &openchoreov1alpha1.Resource{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "it-lifecycle-res",
+					Namespace: nsName,
+				},
+				Spec: openchoreov1alpha1.ResourceSpec{
+					Owner: openchoreov1alpha1.ResourceOwner{
+						ProjectName: projName,
+					},
+					Type: openchoreov1alpha1.ResourceTypeRef{
+						Kind: openchoreov1alpha1.ResourceTypeRefKindResourceType,
+						Name: "some-type",
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+
 			By("Deleting project")
 			Expect(k8sClient.Delete(ctx, fetched)).To(Succeed())
 
