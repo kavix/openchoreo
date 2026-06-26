@@ -188,7 +188,7 @@ var _ = Describe("Finalizer", func() {
 		Expect(apierrors.IsNotFound(err)).To(BeTrue(), "owned ResourceRelease should be deleted")
 	})
 
-	It("does not delete bindings and blocks when retainPolicy is Retain", func() {
+	It("initiates deletion of bindings and blocks when retainPolicy is Retain", func() {
 		res := newRes("fin-retain", true)
 		binding := newBinding("fin-retain-binding", res.Name, true)
 		binding.Spec.RetainPolicy = openchoreov1alpha1.ResourceRetainPolicyRetain
@@ -202,14 +202,14 @@ var _ = Describe("Finalizer", func() {
 		_, err := r.Reconcile(finCtx, req)
 		Expect(err).NotTo(HaveOccurred())
 
-		// 2nd reconcile: binding is Retain, should NOT call delete on it, and requeue.
+		// 2nd reconcile: binding is Retain, should call delete on it, and requeue.
 		result, err := r.Reconcile(finCtx, req)
 		Expect(err).NotTo(HaveOccurred())
 		Expect(result.RequeueAfter).To(BeNumerically(">", 0))
 
 		updatedBinding := &openchoreov1alpha1.ResourceReleaseBinding{}
 		Expect(cli.Get(finCtx, client.ObjectKeyFromObject(binding), updatedBinding)).To(Succeed())
-		Expect(updatedBinding.DeletionTimestamp).To(BeNil(), "binding should NOT have been deleted automatically under Retain policy")
+		Expect(updatedBinding.DeletionTimestamp).NotTo(BeNil(), "binding should have been deleted automatically under Retain policy to run its finalizer")
 
 		updated := &openchoreov1alpha1.Resource{}
 		Expect(cli.Get(finCtx, client.ObjectKeyFromObject(res), updated)).To(Succeed())

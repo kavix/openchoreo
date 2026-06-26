@@ -12,6 +12,7 @@ ALL_GO_FILES := $(shell \
 		! -path './internal/observer/api/logsadapterclientgen/*' \
 		! -path './samples/*' \
 		! -path '**/mocks/*' \
+		! -path './backstage-plugins/node_modules/*' \
 	| sort)
 
 # Path to your tool (update if different)

@@ -161,6 +161,7 @@ linters:
     paths:
       - internal/dataplane/kubernetes/types # 3rd party types for CustomResourceDefinitions
       - ^test/ # E2E tests
+      - ^backstage-plugins/node_modules/
 
 issues:
   # Set to 0 to disable the limit.
