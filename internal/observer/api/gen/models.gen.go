@@ -196,18 +196,19 @@ const (
 	RuntimeTopologyNodeRefKindGateway   RuntimeTopologyNodeRefKind = "gateway"
 )
 
-// Defines values for TraceSpanDetailsResponseStatus.
+// Defines values for SpanStatusCode.
 const (
-	TraceSpanDetailsResponseStatusError TraceSpanDetailsResponseStatus = "error"
-	TraceSpanDetailsResponseStatusOk    TraceSpanDetailsResponseStatus = "ok"
-	TraceSpanDetailsResponseStatusUnset TraceSpanDetailsResponseStatus = "unset"
+	SpanStatusCodeError SpanStatusCode = "error"
+	SpanStatusCodeOk    SpanStatusCode = "ok"
+	SpanStatusCodeUnset SpanStatusCode = "unset"
 )
 
-// Defines values for TraceSpansQueryResponseSpansStatus.
+// Defines values for SystemSearchScopePlane.
 const (
-	Error TraceSpansQueryResponseSpansStatus = "error"
-	Ok    TraceSpansQueryResponseSpansStatus = "ok"
-	Unset TraceSpansQueryResponseSpansStatus = "unset"
+	ControlPlane       SystemSearchScopePlane = "control-plane"
+	DataPlane          SystemSearchScopePlane = "data-plane"
+	ObservabilityPlane SystemSearchScopePlane = "observability-plane"
+	WorkflowPlane      SystemSearchScopePlane = "workflow-plane"
 )
 
 // Defines values for TracesQueryRequestSortOrder.
@@ -1075,6 +1076,43 @@ type RuntimeTopologySummary struct {
 	StartTime   time.Time `json:"startTime"`
 }
 
+// SpanStatus Execution status of the span, following the OpenTelemetry span Status model.
+type SpanStatus struct {
+	// Code The status code of the span. One of "ok", "error", or "unset".
+	Code *SpanStatusCode `json:"code,omitempty"`
+
+	// Message Developer-facing human-readable status description. Typically set only when code is "error".
+	Message *string `json:"message,omitempty"`
+}
+
+// SpanStatusCode The status code of the span. One of "ok", "error", or "unset".
+type SpanStatusCode string
+
+// SystemSearchScope Search scope for OpenChoreo's own system components (control-plane,
+// data-plane, workflow-plane, observability-plane infrastructure), as
+// opposed to tenant workloads (ComponentSearchScope) or workflow runs
+// (WorkflowSearchScope). System components have no tenant-domain identity,
+// so scoping walks a platform-identity hierarchy instead.
+type SystemSearchScope struct {
+	// Cluster Optionally narrows to a specific cluster within the plane.
+	Cluster *string `json:"cluster,omitempty"`
+
+	// Container Optionally narrows to a specific container within the workload's pods.
+	Container *string `json:"container,omitempty"`
+
+	// Namespace Optionally narrows to the Kubernetes namespace the system component runs in.
+	Namespace *string `json:"namespace,omitempty"`
+
+	// Plane Which OpenChoreo plane owns the component.
+	Plane SystemSearchScopePlane `json:"plane"`
+
+	// Workload Optionally narrows to a specific system workload (app.kubernetes.io/instance).
+	Workload *string `json:"workload,omitempty"`
+}
+
+// SystemSearchScopePlane Which OpenChoreo plane owns the component.
+type SystemSearchScopePlane string
+
 // TraceSpanDetailsResponse defines model for TraceSpanDetailsResponse.
 type TraceSpanDetailsResponse struct {
 	// Attributes The span attributes
@@ -1104,12 +1142,9 @@ type TraceSpanDetailsResponse struct {
 	// StartTime The start time of the span
 	StartTime *time.Time `json:"startTime,omitempty"`
 
-	// Status The execution status of the span. One of "ok", "error", or "unset".
-	Status *TraceSpanDetailsResponseStatus `json:"status,omitempty"`
+	// Status Execution status of the span, following the OpenTelemetry span Status model.
+	Status *SpanStatus `json:"status,omitempty"`
 }
-
-// TraceSpanDetailsResponseStatus The execution status of the span. One of "ok", "error", or "unset".
-type TraceSpanDetailsResponseStatus string
 
 // TraceSpansQueryResponse defines model for TraceSpansQueryResponse.
 type TraceSpansQueryResponse struct {
@@ -1142,8 +1177,8 @@ type TraceSpansQueryResponse struct {
 		// StartTime The start time of the span
 		StartTime *time.Time `json:"startTime,omitempty"`
 
-		// Status The execution status of the span. One of "ok", "error", or "unset".
-		Status *TraceSpansQueryResponseSpansStatus `json:"status,omitempty"`
+		// Status Execution status of the span, following the OpenTelemetry span Status model.
+		Status *SpanStatus `json:"status,omitempty"`
 	} `json:"spans,omitempty"`
 
 	// TookMs The time taken to query the spans in milliseconds
@@ -1152,9 +1187,6 @@ type TraceSpansQueryResponse struct {
 	// Total The total number of matching spans, capped at 1000
 	Total *int `json:"total,omitempty"`
 }
-
-// TraceSpansQueryResponseSpansStatus The execution status of the span. One of "ok", "error", or "unset".
-type TraceSpansQueryResponseSpansStatus string
 
 // TracesQueryRequest defines model for TracesQueryRequest.
 type TracesQueryRequest struct {
@@ -1318,6 +1350,32 @@ func (t *EventsQueryRequest_SearchScope) MergeWorkflowSearchScope(v WorkflowSear
 	return err
 }
 
+// AsSystemSearchScope returns the union data inside the EventsQueryRequest_SearchScope as a SystemSearchScope
+func (t EventsQueryRequest_SearchScope) AsSystemSearchScope() (SystemSearchScope, error) {
+	var body SystemSearchScope
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSystemSearchScope overwrites any union data inside the EventsQueryRequest_SearchScope as the provided SystemSearchScope
+func (t *EventsQueryRequest_SearchScope) FromSystemSearchScope(v SystemSearchScope) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSystemSearchScope performs a merge with any union data inside the EventsQueryRequest_SearchScope, using the provided SystemSearchScope
+func (t *EventsQueryRequest_SearchScope) MergeSystemSearchScope(v SystemSearchScope) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
 func (t EventsQueryRequest_SearchScope) MarshalJSON() ([]byte, error) {
 	b, err := t.union.MarshalJSON()
 	return b, err
@@ -1370,6 +1428,32 @@ func (t *LogsQueryRequest_SearchScope) FromWorkflowSearchScope(v WorkflowSearchS
 
 // MergeWorkflowSearchScope performs a merge with any union data inside the LogsQueryRequest_SearchScope, using the provided WorkflowSearchScope
 func (t *LogsQueryRequest_SearchScope) MergeWorkflowSearchScope(v WorkflowSearchScope) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	merged, err := runtime.JSONMerge(t.union, b)
+	t.union = merged
+	return err
+}
+
+// AsSystemSearchScope returns the union data inside the LogsQueryRequest_SearchScope as a SystemSearchScope
+func (t LogsQueryRequest_SearchScope) AsSystemSearchScope() (SystemSearchScope, error) {
+	var body SystemSearchScope
+	err := json.Unmarshal(t.union, &body)
+	return body, err
+}
+
+// FromSystemSearchScope overwrites any union data inside the LogsQueryRequest_SearchScope as the provided SystemSearchScope
+func (t *LogsQueryRequest_SearchScope) FromSystemSearchScope(v SystemSearchScope) error {
+	b, err := json.Marshal(v)
+	t.union = b
+	return err
+}
+
+// MergeSystemSearchScope performs a merge with any union data inside the LogsQueryRequest_SearchScope, using the provided SystemSearchScope
+func (t *LogsQueryRequest_SearchScope) MergeSystemSearchScope(v SystemSearchScope) error {
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err

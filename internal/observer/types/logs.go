@@ -25,21 +25,16 @@ type WorkflowSearchScope struct {
 	TaskName        string `json:"taskName,omitempty"`
 }
 
-// SystemSearchScope defines the search scope for system components.
+// SystemSearchScope defines the search scope for OpenChoreo's own system
+// components (control-plane, data-plane, workflow-plane, and
+// observability-plane infrastructure), as opposed to tenant workloads
+// (ComponentSearchScope) or workflow runs (WorkflowSearchScope).
+// Matches OpenAPI SystemSearchScope schema.
 type SystemSearchScope struct {
-	// Plane identifies the OpenChoreo plane and is required.
-	Plane string `json:"plane" validate:"required"`
-
-	// Cluster narrows the scope to a specific cluster.
-	Cluster string `json:"cluster,omitempty"`
-
-	// Namespace narrows the scope to a Kubernetes namespace.
+	Plane     string `json:"plane" validate:"required"`
+	Cluster   string `json:"cluster,omitempty"`
 	Namespace string `json:"namespace,omitempty"`
-
-	// Workload narrows the scope to a specific system workload.
-	Workload string `json:"workload,omitempty"`
-
-	// Container narrows the scope to a specific container.
+	Workload  string `json:"workload,omitempty"`
 	Container string `json:"container,omitempty"`
 }
 

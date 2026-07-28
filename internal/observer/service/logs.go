@@ -281,5 +281,9 @@ func resolveSearchScope(
 		}, nil
 	}
 
+	if searchScope.System != nil {
+		return nil, fmt.Errorf("system search scope is not yet supported by this adapter")
+	}
+
 	return nil, fmt.Errorf("invalid search scope")
 }

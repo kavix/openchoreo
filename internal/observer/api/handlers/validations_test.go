@@ -191,7 +191,7 @@ func TestValidateLogsQueryRequest(t *testing.T) {
 				StartTime: validStart, EndTime: validEnd,
 			},
 			wantErr:     true,
-			errContains: "cannot be both",
+			errContains: "must be exactly one of",
 		},
 		{
 			name: "neither component nor workflow scope",
@@ -200,7 +200,62 @@ func TestValidateLogsQueryRequest(t *testing.T) {
 				StartTime:   validStart, EndTime: validEnd,
 			},
 			wantErr:     true,
-			errContains: "must be either",
+			errContains: "must be a ComponentSearchScope",
+		},
+		{
+			name: "system + component both set",
+			req: &types.LogsQueryRequest{
+				SearchScope: &types.SearchScope{
+					Component: &types.ComponentSearchScope{Namespace: "ns"},
+					System:    &types.SystemSearchScope{Plane: "control-plane"},
+				},
+				StartTime: validStart, EndTime: validEnd,
+			},
+			wantErr:     true,
+			errContains: "must be exactly one of",
+		},
+		{
+			name: "valid system scope (plane only)",
+			req: &types.LogsQueryRequest{
+				SearchScope: &types.SearchScope{
+					System: &types.SystemSearchScope{Plane: "control-plane"},
+				},
+				StartTime: validStart, EndTime: validEnd,
+			},
+			wantErr: false,
+		},
+		{
+			name: "system scope missing plane",
+			req: &types.LogsQueryRequest{
+				SearchScope: &types.SearchScope{
+					System: &types.SystemSearchScope{Plane: ""},
+				},
+				StartTime: validStart, EndTime: validEnd,
+			},
+			wantErr:     true,
+			errContains: "plane is required",
+		},
+		{
+			name: "system scope with invalid plane value",
+			req: &types.LogsQueryRequest{
+				SearchScope: &types.SearchScope{
+					System: &types.SystemSearchScope{Plane: "invalid-plane"},
+				},
+				StartTime: validStart, EndTime: validEnd,
+			},
+			wantErr:     true,
+			errContains: "plane must be one of",
+		},
+		{
+			name: "system scope with container but no workload",
+			req: &types.LogsQueryRequest{
+				SearchScope: &types.SearchScope{
+					System: &types.SystemSearchScope{Plane: "control-plane", Container: "main"},
+				},
+				StartTime: validStart, EndTime: validEnd,
+			},
+			wantErr:     true,
+			errContains: "workload is required when",
 		},
 		{
 			name: "component scope missing namespace",
@@ -1104,7 +1159,7 @@ func TestValidateEventsQueryRequest(t *testing.T) {
 				EndTime:   end,
 			},
 			wantErr:     true,
-			errContains: "cannot be both",
+			errContains: "must be exactly one of",
 		},
 		{
 			name: "component without project but with component",

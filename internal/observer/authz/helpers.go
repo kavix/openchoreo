@@ -51,7 +51,13 @@ func ComponentScopeAuthz(namespace, project, component string) (ResourceType, st
 	}
 }
 
-// Builds authorization resource details from a system search scope.
+// SystemScopeAuthz determines the authorization resource type, name, and hierarchy
+// from a system search scope (plane/cluster/namespace/workload/container).
+// The most specific non-empty field determines the resource name (container > workload > namespace > cluster > plane).
+// It reuses the generic Resource field of authzcore.ResourceHierarchy for Plane
+// to avoid cross-cutting changes to ResourceHierarchy across all authz consumers.
+// If per-plane authz policy rules are required in the future, extending ResourceHierarchy
+// itself can be pursued in a follow-up.
 func SystemScopeAuthz(scope *types.SystemSearchScope) (ResourceType, string, authzcore.ResourceHierarchy) {
 	h := authzcore.ResourceHierarchy{
 		Namespace: scope.Namespace,

@@ -23,5 +23,7 @@ const (
 	ResourceTypeProject     ResourceType = "project"
 	ResourceTypeNamespace   ResourceType = "namespace"
 	ResourceTypeWorkflowRun ResourceType = "workflowRun"
-	ResourceTypeSystem      ResourceType = "system"
+	// ResourceTypeSystem identifies system components/infrastructure resources, which are operator/admin-scoped
+	// rather than tenant project/component-scoped.
+	ResourceTypeSystem ResourceType = "system"
 )

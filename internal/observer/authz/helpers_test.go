@@ -150,6 +150,66 @@ func TestComponentScopeAuthz(t *testing.T) {
 	}
 }
 
+// ─────────────────────── SystemScopeAuthz ───────────────────────
+
+func TestSystemScopeAuthz(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name             string
+		scope            *types.SystemSearchScope
+		wantResourceType ResourceType
+		wantResourceName string
+		wantHierarchy    authzcore.ResourceHierarchy
+	}{
+		{
+			name:             "plane-only",
+			scope:            &types.SystemSearchScope{Plane: "control-plane"},
+			wantResourceType: ResourceTypeSystem,
+			wantResourceName: "control-plane",
+			wantHierarchy:    authzcore.ResourceHierarchy{Resource: "control-plane"},
+		},
+		{
+			name:             "+cluster",
+			scope:            &types.SystemSearchScope{Plane: "control-plane", Cluster: "cluster-1"},
+			wantResourceType: ResourceTypeSystem,
+			wantResourceName: "cluster-1",
+			wantHierarchy:    authzcore.ResourceHierarchy{Resource: "control-plane"},
+		},
+		{
+			name:             "+namespace",
+			scope:            &types.SystemSearchScope{Plane: "control-plane", Cluster: "cluster-1", Namespace: "openchoreo-system"},
+			wantResourceType: ResourceTypeSystem,
+			wantResourceName: "openchoreo-system",
+			wantHierarchy:    authzcore.ResourceHierarchy{Namespace: "openchoreo-system", Resource: "control-plane"},
+		},
+		{
+			name:             "+workload",
+			scope:            &types.SystemSearchScope{Plane: "control-plane", Cluster: "cluster-1", Namespace: "openchoreo-system", Workload: "apiserver"},
+			wantResourceType: ResourceTypeSystem,
+			wantResourceName: "apiserver",
+			wantHierarchy:    authzcore.ResourceHierarchy{Namespace: "openchoreo-system", Resource: "control-plane"},
+		},
+		{
+			name:             "+container",
+			scope:            &types.SystemSearchScope{Plane: "control-plane", Cluster: "cluster-1", Namespace: "openchoreo-system", Workload: "apiserver", Container: "main"},
+			wantResourceType: ResourceTypeSystem,
+			wantResourceName: "main",
+			wantHierarchy:    authzcore.ResourceHierarchy{Namespace: "openchoreo-system", Resource: "control-plane"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			gotType, gotName, gotHierarchy := SystemScopeAuthz(tt.scope)
+			assert.Equal(t, tt.wantResourceType, gotType)
+			assert.Equal(t, tt.wantResourceName, gotName)
+			assert.Equal(t, tt.wantHierarchy, gotHierarchy)
+		})
+	}
+}
+
 // ─────────────────────── LogsScopeAuthz ───────────────────────
 
 func TestLogsScopeAuthz(t *testing.T) {
@@ -181,6 +241,17 @@ func TestLogsScopeAuthz(t *testing.T) {
 			},
 			wantErr:    true,
 			wantErrMsg: "invalid search scope",
+		},
+		{
+			name: "system scope returns system resource type",
+			req: &types.LogsQueryRequest{
+				SearchScope: &types.SearchScope{
+					System: &types.SystemSearchScope{Plane: "control-plane", Workload: "apiserver"},
+				},
+			},
+			wantResourceType: ResourceTypeSystem,
+			wantResourceName: "apiserver",
+			wantHierarchy:    authzcore.ResourceHierarchy{Resource: "control-plane"},
 		},
 		{
 			name: "component scope with namespace only returns namespace type",
@@ -306,6 +377,17 @@ func TestEventsScopeAuthz(t *testing.T) {
 			wantResourceType: ResourceTypeWorkflowRun,
 			wantResourceName: "run-7",
 			wantHierarchy:    authzcore.ResourceHierarchy{Namespace: "acme"},
+		},
+		{
+			name: "system scope returns system resource type",
+			req: &types.EventsQueryRequest{
+				SearchScope: &types.SearchScope{
+					System: &types.SystemSearchScope{Plane: "control-plane", Workload: "apiserver"},
+				},
+			},
+			wantResourceType: ResourceTypeSystem,
+			wantResourceName: "apiserver",
+			wantHierarchy:    authzcore.ResourceHierarchy{Resource: "control-plane"},
 		},
 	}
 

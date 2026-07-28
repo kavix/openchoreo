@@ -173,8 +173,8 @@ func convertSpanDetailResponse(resp *gen.TraceSpanDetailsResponse) *observabilit
 	if resp.SpanKind != nil {
 		detail.SpanKind = *resp.SpanKind
 	}
-	if resp.Status != nil {
-		detail.Status = string(*resp.Status)
+	if resp.Status != nil && resp.Status.Code != nil {
+		detail.Status = string(*resp.Status.Code)
 	}
 
 	if resp.Attributes != nil {
@@ -221,8 +221,8 @@ func convertSpansAdapterResponse(resp *gen.TraceSpansQueryResponse) *observabili
 			if s.SpanKind != nil {
 				span.SpanKind = *s.SpanKind
 			}
-			if s.Status != nil {
-				span.Status = string(*s.Status)
+			if s.Status != nil && s.Status.Code != nil {
+				span.Status = string(*s.Status.Code)
 			}
 			if s.Attributes != nil {
 				span.Attributes = *s.Attributes

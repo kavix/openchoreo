@@ -152,6 +152,21 @@ func TestLogsService_QueryLogs_EmptySearchScope(t *testing.T) {
 	require.ErrorIs(t, err, ErrLogsResolveSearchScope)
 }
 
+func TestLogsService_QueryLogs_SystemSearchScope(t *testing.T) {
+	t.Parallel()
+	svc := newLogsServiceForTest(t, &fakeLogsAdapter{})
+	_, err := svc.QueryLogs(context.Background(), &types.LogsQueryRequest{
+		SearchScope: &types.SearchScope{
+			System: &types.SystemSearchScope{Plane: "control-plane"},
+		},
+		StartTime: "2026-03-07T10:00:00Z",
+		EndTime:   "2026-03-07T11:00:00Z",
+	})
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrLogsResolveSearchScope)
+	assert.Contains(t, err.Error(), "system search scope is not yet supported")
+}
+
 func TestLogsService_QueryLogs_WorkflowScope_Success(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 3, 7, 10, 0, 0, 0, time.UTC)
