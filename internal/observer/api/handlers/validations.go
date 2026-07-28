@@ -37,27 +37,8 @@ func ValidateLogsQueryRequest(req *types.LogsQueryRequest) error {
 	if req.SearchScope == nil {
 		return fmt.Errorf("searchScope is required")
 	}
-
-	// Exactly one of component or workflow must be set
-	if req.SearchScope.Component == nil && req.SearchScope.Workflow == nil {
-		return fmt.Errorf("searchScope must be either a ComponentSearchScope (with namespace, and optionally project/component/environment) or WorkflowSearchScope (with namespace, and optionally workflowRunName)")
-	}
-	if req.SearchScope.Component != nil && req.SearchScope.Workflow != nil {
-		return fmt.Errorf("searchScope cannot be both ComponentSearchScope and WorkflowSearchScope")
-	}
-
-	// Validate component scope if present
-	if req.SearchScope.Component != nil {
-		if err := validateComponentScope(req.SearchScope.Component); err != nil {
-			return err
-		}
-	}
-
-	// Validate workflow scope if present
-	if req.SearchScope.Workflow != nil {
-		if err := validateWorkflowScope(req.SearchScope.Workflow); err != nil {
-			return err
-		}
+	if err := validateSearchScope(req.SearchScope); err != nil {
+		return err
 	}
 
 	// Validate time range
@@ -83,6 +64,35 @@ func ValidateLogsQueryRequest(req *types.LogsQueryRequest) error {
 	return nil
 }
 
+// validateSearchScope validates a component/workflow/system SearchScope union,
+// shared by logs and events query requests.
+func validateSearchScope(scope *types.SearchScope) error {
+	set := 0
+	if scope.Component != nil {
+		set++
+	}
+	if scope.Workflow != nil {
+		set++
+	}
+	if scope.System != nil {
+		set++
+	}
+	if set == 0 {
+		return fmt.Errorf("searchScope must be a ComponentSearchScope (with namespace, and optionally project/component/environment), a WorkflowSearchScope (with namespace, and optionally workflowRunName), or a SystemSearchScope (with plane, and optionally cluster/namespace/workload/container)")
+	}
+	if set > 1 {
+		return fmt.Errorf("searchScope must be exactly one of ComponentSearchScope, WorkflowSearchScope, or SystemSearchScope")
+	}
+
+	if scope.Component != nil {
+		return validateComponentScope(scope.Component)
+	}
+	if scope.Workflow != nil {
+		return validateWorkflowScope(scope.Workflow)
+	}
+	return validateSystemScope(scope.System)
+}
+
 // ValidateEventsQueryRequest validates the EventsQueryRequest.
 func ValidateEventsQueryRequest(req *types.EventsQueryRequest) error {
 	if req == nil {
@@ -93,27 +103,8 @@ func ValidateEventsQueryRequest(req *types.EventsQueryRequest) error {
 	if req.SearchScope == nil {
 		return fmt.Errorf("searchScope is required")
 	}
-
-	// Exactly one of component or workflow must be set
-	if req.SearchScope.Component == nil && req.SearchScope.Workflow == nil {
-		return fmt.Errorf("searchScope must be either a ComponentSearchScope (with namespace, and optionally project/component/environment) or WorkflowSearchScope (with namespace, and optionally workflowRunName)")
-	}
-	if req.SearchScope.Component != nil && req.SearchScope.Workflow != nil {
-		return fmt.Errorf("searchScope cannot be both ComponentSearchScope and WorkflowSearchScope")
-	}
-
-	// Validate component scope if present
-	if req.SearchScope.Component != nil {
-		if err := validateComponentScope(req.SearchScope.Component); err != nil {
-			return err
-		}
-	}
-
-	// Validate workflow scope if present
-	if req.SearchScope.Workflow != nil {
-		if err := validateWorkflowScope(req.SearchScope.Workflow); err != nil {
-			return err
-		}
+	if err := validateSearchScope(req.SearchScope); err != nil {
+		return err
 	}
 
 	// Validate time range
@@ -163,6 +154,39 @@ func validateWorkflowScope(scope *types.WorkflowSearchScope) error {
 		return fmt.Errorf("searchScope.namespace is required")
 	}
 	// workflowRunName is optional per OpenAPI spec
+	return nil
+}
+
+// validSystemPlanes are the recognized values for SystemSearchScope.Plane.
+var validSystemPlanes = map[string]bool{
+	"control-plane":       true,
+	"data-plane":          true,
+	"workflow-plane":      true,
+	"observability-plane": true,
+}
+
+// validateSystemScope validates the SystemSearchScope.
+// Per OpenAPI spec, only plane is required; cluster/namespace/workload/container
+// progressively narrow the query.
+func validateSystemScope(scope *types.SystemSearchScope) error {
+	// Trim whitespace so whitespace-only identifiers are rejected early
+	scope.Plane = strings.TrimSpace(scope.Plane)
+	scope.Cluster = strings.TrimSpace(scope.Cluster)
+	scope.Namespace = strings.TrimSpace(scope.Namespace)
+	scope.Workload = strings.TrimSpace(scope.Workload)
+	scope.Container = strings.TrimSpace(scope.Container)
+
+	if scope.Plane == "" {
+		return fmt.Errorf("searchScope.plane is required")
+	}
+	if !validSystemPlanes[scope.Plane] {
+		return fmt.Errorf("searchScope.plane must be one of control-plane, data-plane, workflow-plane, observability-plane")
+	}
+	// container narrows a workload, so a workload must be identified first —
+	// either directly or via a namespace that pins it down.
+	if scope.Container != "" && scope.Workload == "" {
+		return fmt.Errorf("searchScope.workload is required when searchScope.container is provided")
+	}
 	return nil
 }
 

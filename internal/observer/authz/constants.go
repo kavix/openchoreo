@@ -23,4 +23,5 @@ const (
 	ResourceTypeProject     ResourceType = "project"
 	ResourceTypeNamespace   ResourceType = "namespace"
 	ResourceTypeWorkflowRun ResourceType = "workflowRun"
+	ResourceTypeSystem      ResourceType = "system"
 )

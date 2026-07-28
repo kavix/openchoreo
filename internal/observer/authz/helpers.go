@@ -51,8 +51,28 @@ func ComponentScopeAuthz(namespace, project, component string) (ResourceType, st
 	}
 }
 
+// Builds authorization resource details from a system search scope.
+func SystemScopeAuthz(scope *types.SystemSearchScope) (ResourceType, string, authzcore.ResourceHierarchy) {
+	h := authzcore.ResourceHierarchy{
+		Namespace: scope.Namespace,
+		Resource:  scope.Plane,
+	}
+	switch {
+	case scope.Container != "":
+		return ResourceTypeSystem, scope.Container, h
+	case scope.Workload != "":
+		return ResourceTypeSystem, scope.Workload, h
+	case scope.Namespace != "":
+		return ResourceTypeSystem, scope.Namespace, h
+	case scope.Cluster != "":
+		return ResourceTypeSystem, scope.Cluster, h
+	default:
+		return ResourceTypeSystem, scope.Plane, h
+	}
+}
+
 // searchScopeAuthz determines the authorization resource type, name, and hierarchy
-// from a component/workflow search scope union, shared by logs and events queries.
+// from a component/workflow/system search scope union, shared by logs and events queries.
 func searchScopeAuthz(scope *types.SearchScope) (ResourceType, string, authzcore.ResourceHierarchy, error) {
 	if scope == nil {
 		return "", "", authzcore.ResourceHierarchy{}, fmt.Errorf("search scope is required")
@@ -70,6 +90,10 @@ func searchScopeAuthz(scope *types.SearchScope) (ResourceType, string, authzcore
 		}
 		return ResourceTypeNamespace, w.Namespace,
 			authzcore.ResourceHierarchy{Namespace: w.Namespace}, nil
+	}
+	if scope.System != nil {
+		rt, rn, h := SystemScopeAuthz(scope.System)
+		return rt, rn, h, nil
 	}
 	return "", "", authzcore.ResourceHierarchy{}, fmt.Errorf("invalid search scope")
 }

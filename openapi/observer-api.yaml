@@ -816,6 +816,33 @@ components:
           type: string
       required: [namespace]
 
+    SystemSearchScope:
+      type: object
+      description: |
+        Search scope for OpenChoreo's own system components (control-plane,
+        data-plane, workflow-plane, observability-plane infrastructure), as
+        opposed to tenant workloads (ComponentSearchScope) or workflow runs
+        (WorkflowSearchScope). System components have no tenant-domain identity,
+        so scoping walks a platform-identity hierarchy instead.
+      properties:
+        plane:
+          type: string
+          description: Which OpenChoreo plane owns the component.
+          enum: ["control-plane", "data-plane", "workflow-plane", "observability-plane"]
+        cluster:
+          type: string
+          description: Optionally narrows to a specific cluster within the plane.
+        namespace:
+          type: string
+          description: Optionally narrows to the Kubernetes namespace the system component runs in.
+        workload:
+          type: string
+          description: Optionally narrows to a specific system workload (app.kubernetes.io/instance).
+        container:
+          type: string
+          description: Optionally narrows to a specific container within the workload's pods.
+      required: [plane]
+
     LogsQueryRequest:
       type: object
       properties:
@@ -844,6 +871,7 @@ components:
           oneOf:
             - $ref: "#/components/schemas/ComponentSearchScope"
             - $ref: "#/components/schemas/WorkflowSearchScope"
+            - $ref: "#/components/schemas/SystemSearchScope"
         logLevels:
           type: array
           uniqueItems: true
@@ -965,6 +993,7 @@ components:
           oneOf:
             - $ref: "#/components/schemas/ComponentSearchScope"
             - $ref: "#/components/schemas/WorkflowSearchScope"
+            - $ref: "#/components/schemas/SystemSearchScope"
       required: [startTime, endTime, searchScope]
 
     # Response schemas for events
@@ -1453,12 +1482,7 @@ components:
                 type: string
                 description: The parent span ID
               status:
-                type: string
-                enum:
-                  - ok
-                  - error
-                  - unset
-                description: The execution status of the span. One of "ok", "error", or "unset".
+                $ref: "#/components/schemas/SpanStatus"
               attributes:
                 type: object
                 description: The span attributes
@@ -1502,12 +1526,7 @@ components:
           type: string
           description: The parent span ID
         status:
-          type: string
-          enum:
-            - ok
-            - error
-            - unset
-          description: The execution status of the span. One of "ok", "error", or "unset".
+          $ref: "#/components/schemas/SpanStatus"
         attributes:
           type: object
           description: The span attributes
@@ -1516,6 +1535,26 @@ components:
           type: object
           description: The resource attributes
           additionalProperties: true
+
+    # OpenTelemetry span status (code + optional message)
+    SpanStatus:
+      type: object
+      description: >-
+        Execution status of the span, following the OpenTelemetry span Status
+        model.
+      properties:
+        code:
+          type: string
+          enum:
+            - ok
+            - error
+            - unset
+          description: The status code of the span. One of "ok", "error", or "unset".
+        message:
+          type: string
+          description: >-
+            Developer-facing human-readable status description. Typically set
+            only when code is "error".
 
     # Request schemas for alert rules
     AlertRuleRequest:

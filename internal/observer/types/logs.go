@@ -25,6 +25,24 @@ type WorkflowSearchScope struct {
 	TaskName        string `json:"taskName,omitempty"`
 }
 
+// SystemSearchScope defines the search scope for system components.
+type SystemSearchScope struct {
+	// Plane identifies the OpenChoreo plane and is required.
+	Plane string `json:"plane" validate:"required"`
+
+	// Cluster narrows the scope to a specific cluster.
+	Cluster string `json:"cluster,omitempty"`
+
+	// Namespace narrows the scope to a Kubernetes namespace.
+	Namespace string `json:"namespace,omitempty"`
+
+	// Workload narrows the scope to a specific system workload.
+	Workload string `json:"workload,omitempty"`
+
+	// Container narrows the scope to a specific container.
+	Container string `json:"container,omitempty"`
+}
+
 // LogsQueryRequest represents the request body for POST /api/v1/logs/query
 // Matches OpenAPI LogsQueryRequest schema
 type LogsQueryRequest struct {
@@ -44,15 +62,16 @@ type LogsQueryRequest struct {
 	SortOrder string `json:"sortOrder,omitempty"` // asc or desc, default: desc
 }
 
-// SearchScope is a union type for component or workflow search scope
-// Implements oneOf from OpenAPI spec - can be either ComponentSearchScope or WorkflowSearchScope
+// SearchScope is a union type for component, workflow, or system search scope.
+// Implements oneOf from OpenAPI spec - can be ComponentSearchScope, WorkflowSearchScope, or SystemSearchScope.
 type SearchScope struct {
 	Component *ComponentSearchScope `json:"-"`
 	Workflow  *WorkflowSearchScope  `json:"-"`
+	System    *SystemSearchScope    `json:"-"`
 }
 
 // UnmarshalJSON implements custom JSON unmarshaling to handle oneOf
-// The JSON can be either a ComponentSearchScope or WorkflowSearchScope directly
+// The JSON can be a ComponentSearchScope, WorkflowSearchScope, or SystemSearchScope directly.
 func (s *SearchScope) UnmarshalJSON(data []byte) error {
 	// First, unmarshal into a map to check for distinguishing fields
 	var raw map[string]interface{}
@@ -61,16 +80,30 @@ func (s *SearchScope) UnmarshalJSON(data []byte) error {
 	}
 
 	// Check for distinguishing fields:
+	// - plane indicates SystemSearchScope
 	// - workflowRunName indicates WorkflowSearchScope
 	// - project, component, or environment indicates ComponentSearchScope
+	_, hasPlane := raw["plane"]
 	_, hasWorkflowRunName := raw["workflowRunName"]
 	_, hasProject := raw["project"]
 	_, hasComponent := raw["component"]
 	_, hasEnvironment := raw["environment"]
 
-	// Reject mixed oneOf: workflowRunName cannot coexist with component-specific fields
+	// Reject mixed oneOf: plane cannot coexist with the other scopes' distinguishing fields, and workflowRunName cannot coexist with component-specific fields.
+	if hasPlane && (hasWorkflowRunName || hasProject || hasComponent || hasEnvironment) {
+		return fmt.Errorf("searchScope cannot mix plane with workflowRunName/project/component/environment")
+	}
 	if hasWorkflowRunName && (hasProject || hasComponent || hasEnvironment) {
 		return fmt.Errorf("searchScope cannot mix workflowRunName with project/component/environment")
+	}
+
+	if hasPlane {
+		var systemScope SystemSearchScope
+		if err := json.Unmarshal(data, &systemScope); err != nil {
+			return fmt.Errorf("failed to unmarshal as SystemSearchScope: %w", err)
+		}
+		s.System = &systemScope
+		return nil
 	}
 
 	if hasWorkflowRunName {
@@ -104,16 +137,26 @@ func (s *SearchScope) UnmarshalJSON(data []byte) error {
 
 // MarshalJSON implements custom JSON marshaling
 func (s *SearchScope) MarshalJSON() ([]byte, error) {
-	if s.Component != nil && s.Workflow != nil {
-		return nil, fmt.Errorf("searchScope cannot contain both component and workflow")
+	set := 0
+	if s.Component != nil {
+		set++
 	}
-	if s.Component == nil && s.Workflow == nil {
-		return nil, fmt.Errorf("searchScope must contain either component or workflow")
+	if s.Workflow != nil {
+		set++
+	}
+	if s.System != nil {
+		set++
+	}
+	if set != 1 {
+		return nil, fmt.Errorf("searchScope must contain exactly one of component, workflow, or system")
 	}
 	if s.Component != nil {
 		return json.Marshal(s.Component)
 	}
-	return json.Marshal(s.Workflow)
+	if s.Workflow != nil {
+		return json.Marshal(s.Workflow)
+	}
+	return json.Marshal(s.System)
 }
 
 // LogMetadata contains metadata for a log entry
