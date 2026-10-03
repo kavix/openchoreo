@@ -800,6 +800,7 @@ func (s *workflowRunService) GetWorkflowRunStatus(ctx context.Context, namespace
 		Status:               overallStatus,
 		Steps:                steps,
 		HasLiveObservability: hasLiveObservability,
+		Conditions:           wfRun.Status.Conditions,
 	}, nil
 }
 
@@ -842,6 +843,15 @@ func (s *workflowRunService) argoWorkflowExists(ctx context.Context, namespaceNa
 func computeWorkflowRunStatus(conditions []metav1.Condition) string {
 	if len(conditions) == 0 {
 		return workflowRunStatusPending
+	}
+
+	for _, condition := range conditions {
+		if condition.Type == "WorkflowCompleted" && condition.Status == metav1.ConditionFalse {
+			switch condition.Reason {
+			case "WorkflowRenderingFailed", "WorkflowPlaneNotFound", "WorkflowPlaneResolutionFailed", "WorkflowResolutionFailed", "ComponentValidationFailed":
+				return workflowRunStatusFailed
+			}
+		}
 	}
 
 	for _, condition := range conditions {
